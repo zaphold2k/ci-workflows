@@ -7,6 +7,7 @@ import {
   formatPrComment,
   hasOverrideLabel,
   decide,
+  findExistingComment,
   OVERRIDE_LABEL,
 } from "./ratchet.mjs";
 
@@ -177,6 +178,23 @@ test("decide blocks only when there is a regression, no override, and not a dry 
 test("formatPrComment carries the identity marker so the run can find its own comment", () => {
   const body = formatPrComment(compareMetrics(metrics(), metrics()));
   assert.match(body, /<!-- ci-workflows:quality-ratchet -->/);
+});
+
+test("findExistingComment finds the run's own comment by marker among others", () => {
+  const comments = [
+    { id: 1, body: "unrelated human comment" },
+    { id: 2, body: "### Quality ratchet\n\n<!-- ci-workflows:quality-ratchet -->" },
+  ];
+  const existing = findExistingComment(comments, "<!-- ci-workflows:quality-ratchet -->");
+  assert.equal(existing.id, 2);
+});
+
+test("findExistingComment returns null on the first run of a pull request", () => {
+  const existing = findExistingComment(
+    [{ id: 1, body: "unrelated" }],
+    "<!-- ci-workflows:quality-ratchet -->",
+  );
+  assert.equal(existing, null);
 });
 
 test("formatSummaryTable notes when there is no baseline yet", () => {

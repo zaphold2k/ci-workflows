@@ -224,6 +224,11 @@ function fetchBaseline({ repo, workflowFile, branch }) {
   }
 }
 
+/** The run's own prior comment, identified by marker, so it's updated instead of duplicated. */
+export function findExistingComment(comments, marker = COMMENT_MARKER) {
+  return comments.find((comment) => comment.body?.includes(marker)) ?? null;
+}
+
 function upsertPrComment({ repo, prNumber, body }) {
   try {
     const commentsJson = sh("gh", [
@@ -232,7 +237,7 @@ function upsertPrComment({ repo, prNumber, body }) {
       "--paginate",
     ]);
     const comments = JSON.parse(commentsJson);
-    const existing = comments.find((comment) => comment.body?.includes(COMMENT_MARKER));
+    const existing = findExistingComment(comments);
 
     if (existing) {
       sh("gh", [

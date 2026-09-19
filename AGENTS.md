@@ -74,6 +74,45 @@ suppress. Run once more _without_ `dry_run` against the same test project
 before merging, so the real registry/tag paths get exercised too, not only
 the ones dry run intentionally skips.
 
+### Exercising the `verify` job locally, with no push at all
+
+[act](https://github.com/nektos/act) runs a workflow's steps in local
+Docker containers and can exercise `ci.yml`'s `verify` job — install,
+lint, test, build, metrics, ratchet, and branch-role/version resolution —
+without pushing anything anywhere. It cannot exercise the `docker` job's
+`docker/build-push-action` or `docker/setup-qemu-action` steps
+realistically (nested Docker inside act's containers), and it can't
+exercise anything that genuinely depends on GitHub's servers (the real
+artifact API needs `--artifact-server-path`; there is no live PR to
+comment on). Within those limits it's a fast, honest way to check the
+`verify` job's actual step wiring, not just the scripts it calls in
+isolation:
+
+```bash
+mkdir -p /tmp/act-test/.github/workflows /tmp/act-test/.ci-workflows
+cp .github/workflows/ci.yml /tmp/act-test/.github/workflows/ci.yml
+cp -r scripts /tmp/act-test/.ci-workflows/
+# In the copied ci.yml, remove the "Resolve this component's own repository
+# and ref" and "Check out ci-workflows itself" steps — .ci-workflows is
+# already in place above, and the real steps would try to fetch this
+# repository from GitHub using act's synthetic (non-existent) context.
+cat > /tmp/act-test/.github/workflows/caller.yml <<'EOF'
+on: push
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    with: { language: node, dockerfile: "", dry_run: true }
+EOF
+# Copy a project from tests/fixtures/projects/<language>/ into /tmp/act-test,
+# git init + commit it, then, to exercise a specific branch role, write an
+# event.json with the ref you want (act's default push event doesn't
+# reflect your actual local branch name):
+#   { "ref": "refs/heads/feature-login-oauth" }
+act push -W .github/workflows/caller.yml \
+  -P ubuntu-latest=catthehacker/ubuntu:act-latest \
+  --artifact-server-path /tmp/act-artifacts -e event.json
+```
+
 ## Before a new path is available to consumers
 
 A "path" here means a new input, a new language, a new branch role, or a
