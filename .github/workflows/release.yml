@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      target_branch:
+        type: string
+        default: "main"
+      config_file:
+        type: string
+        default: "release-please-config.json"
+      manifest_file:
+        type: string
+        default: ".release-please-manifest.json"
+    secrets:
+      release_token:
+        description: >-
+          Optional PAT or GitHub App token. Without one, the tag release-please
+          creates uses the default GITHUB_TOKEN, which by GitHub's own design
+          does not trigger another workflow run — so the stable-tag push that
+          ci.yml listens for never fires, and publishing has to be re-run
+          manually. Provide this secret to get an automatic publish.
+        required: false
+    outputs:
+      release_created:
+        value: ${{ jobs.release.outputs.release_created }}
+      tag_name:
+        value: ${{ jobs.release.outputs.tag_name }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Release please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.release_token || github.token }}
+          target-branch: ${{ inputs.target_branch }}
+          config-file: ${{ inputs.config_file }}
+          manifest-file: ${{ inputs.manifest_file }}

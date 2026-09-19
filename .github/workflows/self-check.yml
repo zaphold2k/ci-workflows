@@ -1,0 +1,35 @@
+name: Self-check
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: zaphold2k/ci-workflows/.github/workflows/ci.yml@main
+    with:
+      language: node
+      dockerfile: ""
+      coverage_tolerance: 0
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+      actions: read
+
+  validate-workflows:
+    name: Validate workflow syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download actionlint
+        run: |
+          bash <(curl -sL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+
+      - name: Run actionlint
+        run: ./actionlint -color
