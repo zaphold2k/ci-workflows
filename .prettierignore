@@ -1,0 +1,6 @@
+node_modules/
+.ci/
+dist/
+coverage/
+openspec/
+CHANGELOG.md
