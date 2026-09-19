@@ -91,11 +91,43 @@ export function resolvePublication({
     const version = parseVersionTag(refName);
     if (!version || version.prerelease)
       return { role: "stable", publish: false, reason: "not a stable version tag" };
+
+    const base = formatVersion(version);
+    if (branchModel !== "full") {
+      return {
+        role: "stable",
+        publish: true,
+        kind: "stable",
+        strategy: "build",
+        version: base,
+        imageTags: stableTags(refName, shortSha),
+      };
+    }
+
+    const candidatePattern = new RegExp(`^v${base.replace(/\./g, "\\.")}-rc\\.(\\d+)$`);
+    const digestSourceTag = existingTags
+      .filter((tag) => candidatePattern.test(tag))
+      .sort((a, b) => Number(candidatePattern.exec(a)[1]) - Number(candidatePattern.exec(b)[1]))
+      .at(-1);
+
+    if (!digestSourceTag) {
+      return {
+        role: "stable",
+        publish: false,
+        kind: "stable",
+        strategy: "promote",
+        version: base,
+        reason: `no candidate tag found for v${base}-rc.N; cannot promote a digest that was never built`,
+      };
+    }
+
     return {
       role: "stable",
       publish: true,
       kind: "stable",
-      version: formatVersion(version),
+      strategy: "promote",
+      version: base,
+      digestSourceTag: digestSourceTag.slice(1), // drop the leading "v" to match the image tag
       imageTags: stableTags(refName, shortSha),
     };
   }
@@ -110,7 +142,13 @@ export function resolvePublication({
     return { role: null, publish: false, reason: "branch has no role in the declared model" };
 
   if (role === "stable") {
-    return { role, publish: true, kind: "branch", imageTags: branchTags(mainBranch, shortSha) };
+    return {
+      role,
+      publish: true,
+      kind: "branch",
+      strategy: "build",
+      imageTags: branchTags(mainBranch, shortSha),
+    };
   }
 
   const next = computeNextVersion(lastVersion, commitMessages);
@@ -127,6 +165,7 @@ export function resolvePublication({
     role,
     publish: true,
     kind: role === "work" ? "prerelease" : "candidate",
+    strategy: "build",
     version,
     tagName,
     imageTags: prereleaseTags(version, shortSha, { movingTag }),

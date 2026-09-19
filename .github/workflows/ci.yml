@@ -1,0 +1,473 @@
+name: CI
+
+on:
+  workflow_call:
+    inputs:
+      language:
+        description: "node, go, python, or make"
+        type: string
+        required: true
+      runtime_version:
+        description: "Toolchain version. Empty uses the language's latest stable."
+        type: string
+        default: ""
+      working_directory:
+        type: string
+        default: "."
+      install_command:
+        type: string
+        default: "__lang_default__"
+      lint_command:
+        type: string
+        default: "__lang_default__"
+      typecheck_command:
+        type: string
+        default: "__lang_default__"
+      test_command:
+        type: string
+        default: "__lang_default__"
+      build_command:
+        type: string
+        default: "__lang_default__"
+      e2e_command:
+        description: "No language has a default; empty skips this stage."
+        type: string
+        default: ""
+      coverage_tolerance:
+        description: "Percentage points of coverage drop tolerated before blocking. 0 is strict."
+        type: number
+        default: 0
+      coverage_floor:
+        description: "Absolute minimum line coverage percentage. Empty disables it."
+        type: string
+        default: ""
+      branch_model:
+        description: "simple (main + work branches) or full (main + develop + work branches)"
+        type: string
+        default: "simple"
+      main_branch:
+        type: string
+        default: "main"
+      integration_branch:
+        type: string
+        default: "develop"
+      work_branch_pattern:
+        type: string
+        default: "feature-*"
+      image_name:
+        description: "Empty derives ghcr.io/<owner>/<repo> from the consumer repository."
+        type: string
+        default: ""
+      dockerfile:
+        description: "Path relative to working_directory. Empty skips the Docker build entirely."
+        type: string
+        default: "Dockerfile"
+      platforms:
+        type: string
+        default: "linux/amd64,linux/arm64"
+      publish_image:
+        type: boolean
+        default: true
+      registry:
+        type: string
+        default: "ghcr.io"
+      smoke_test_endpoint:
+        description: "e.g. http://localhost:8080/health. Empty skips the smoke test."
+        type: string
+        default: ""
+      smoke_test_port:
+        type: string
+        default: "8080"
+      smoke_test_env:
+        description: "JSON object of environment variables for the smoke-test container."
+        type: string
+        default: "{}"
+      smoke_test_timeout:
+        description: "Seconds to wait for the smoke-test endpoint to respond."
+        type: number
+        default: 60
+      dry_run:
+        description: "Run the full pipeline without publishing images, creating tags, or commenting."
+        type: boolean
+        default: false
+    secrets:
+      registry_username:
+        required: false
+      registry_password:
+        required: false
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  verify:
+    name: Verify (${{ inputs.language }})
+    runs-on: ubuntu-latest
+    outputs:
+      overall_result: ${{ steps.evaluate.outputs.result }}
+      self_repo: ${{ steps.self.outputs.repo }}
+      self_ref: ${{ steps.self.outputs.ref }}
+      branch_role: ${{ steps.publication.outputs.role }}
+      publish: ${{ steps.publication.outputs.publish }}
+      strategy: ${{ steps.publication.outputs.strategy }}
+      version: ${{ steps.publication.outputs.version }}
+      image_tags: ${{ steps.publication.outputs.image_tags }}
+      digest_source_tag: ${{ steps.publication.outputs.digest_source_tag }}
+    steps:
+      - name: Reject an unsupported language
+        if: ${{ !contains(fromJSON('["node","go","python","make"]'), inputs.language) }}
+        run: |
+          echo "::error::Unsupported language '${{ inputs.language }}'. Accepted values: node, go, python, make." >&2
+          exit 1
+
+      - name: Check out the consumer repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve this component's own repository and ref
+        id: self
+        run: |
+          workflow_ref="${GITHUB_WORKFLOW_REF}"
+          repo="${workflow_ref%%/.github/*}"
+          ref="${workflow_ref##*@}"
+          echo "repo=${repo}" >> "$GITHUB_OUTPUT"
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out ci-workflows itself
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.self.outputs.repo }}
+          ref: ${{ steps.self.outputs.ref }}
+          path: .ci-workflows
+
+      - name: Set up Node.js
+        if: inputs.language == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.runtime_version || 'lts/*' }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working_directory }}/package-lock.json
+
+      - name: Set up Go
+        if: inputs.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.runtime_version || 'stable' }}
+          cache-dependency-path: ${{ inputs.working_directory }}/go.sum
+
+      - name: Install golangci-lint
+        if: inputs.language == 'go'
+        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$(go env GOPATH)/bin"
+
+      - name: Set up Python
+        if: inputs.language == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.runtime_version || '3.12' }}
+          cache: pip
+
+      - name: Resolve default commands for ${{ inputs.language }}
+        id: defaults
+        run: |
+          case "${{ inputs.language }}" in
+            node)
+              d_install="npm ci"
+              d_lint="npm run lint --if-present"
+              d_typecheck="npm run typecheck --if-present"
+              d_test="npm test --if-present"
+              d_build="npm run build --if-present"
+              ;;
+            go)
+              d_install="go mod download"
+              d_lint="golangci-lint run"
+              d_typecheck="go vet ./..."
+              d_test="go test ./... -race -json -coverprofile=.ci/cover.out > .ci/gotest.json"
+              d_build="go build ./..."
+              ;;
+            python)
+              d_install="pip install -e .[dev]"
+              d_lint="ruff check ."
+              d_typecheck=""
+              d_test="pytest --junitxml=.ci/junit.xml --cov --cov-report=json:.ci/coverage.json"
+              d_build=""
+              ;;
+            make)
+              d_install="make install"
+              d_lint="make lint"
+              d_typecheck="make typecheck"
+              d_test="make test"
+              d_build="make build"
+              ;;
+          esac
+          resolve() { [ "$1" = "__lang_default__" ] && echo "$2" || echo "$1"; }
+          {
+            echo "install=$(resolve "${{ inputs.install_command }}" "$d_install")"
+            echo "lint=$(resolve "${{ inputs.lint_command }}" "$d_lint")"
+            echo "typecheck=$(resolve "${{ inputs.typecheck_command }}" "$d_typecheck")"
+            echo "test=$(resolve "${{ inputs.test_command }}" "$d_test")"
+            echo "build=$(resolve "${{ inputs.build_command }}" "$d_build")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install
+        if: steps.defaults.outputs.install != ''
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ steps.defaults.outputs.install }}
+
+      - name: Lint
+        id: lint
+        if: steps.defaults.outputs.lint != ''
+        continue-on-error: true
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ steps.defaults.outputs.lint }}
+
+      - name: Typecheck
+        id: typecheck
+        if: steps.defaults.outputs.typecheck != ''
+        continue-on-error: true
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ steps.defaults.outputs.typecheck }}
+
+      - name: Test
+        id: test
+        if: steps.defaults.outputs.test != ''
+        continue-on-error: true
+        working-directory: ${{ inputs.working_directory }}
+        run: |
+          mkdir -p .ci
+          ${{ steps.defaults.outputs.test }}
+
+      - name: Go coverage report
+        if: inputs.language == 'go' && steps.test.outcome != 'skipped'
+        continue-on-error: true
+        working-directory: ${{ inputs.working_directory }}
+        run: go tool cover -func=.ci/cover.out > .ci/coverage-func.txt
+
+      - name: Build
+        id: build
+        if: steps.defaults.outputs.build != ''
+        continue-on-error: true
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ steps.defaults.outputs.build }}
+
+      - name: End-to-end tests
+        id: e2e
+        if: inputs.e2e_command != ''
+        continue-on-error: true
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ inputs.e2e_command }}
+
+      - name: Collect metrics
+        id: metrics
+        if: always()
+        run: |
+          node .ci-workflows/scripts/collect-metrics.mjs \
+            --language "${{ inputs.language }}" \
+            --dir "${{ inputs.working_directory }}" \
+            --out "${{ inputs.working_directory }}/.ci/metrics.json"
+
+      - name: Upload metrics artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics
+          path: ${{ inputs.working_directory }}/.ci/metrics.json
+          retention-days: 90
+
+      - name: Quality ratchet
+        id: ratchet
+        if: always() && steps.metrics.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node .ci-workflows/scripts/ratchet.mjs \
+            --metrics "${{ inputs.working_directory }}/.ci/metrics.json" \
+            --tolerance "${{ inputs.coverage_tolerance }}" \
+            --floor "${{ inputs.coverage_floor }}" \
+            --dry-run "${{ inputs.dry_run }}" \
+            --repo "${{ github.repository }}" \
+            --workflow "ci.yml" \
+            --event "${{ github.event_name }}" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --base-ref "${{ github.event.pull_request.base.ref }}" \
+            --branch "${{ github.ref_name }}" \
+            --branch-model "${{ inputs.branch_model }}" \
+            --main-branch "${{ inputs.main_branch }}" \
+            --integration-branch "${{ inputs.integration_branch }}" \
+            --work-branch-pattern "${{ inputs.work_branch_pattern }}" \
+            --labels "${{ join(github.event.pull_request.labels.*.name, ',') }}"
+
+      - name: Evaluate verification stages
+        id: evaluate
+        if: always()
+        run: |
+          failed=""
+          for pair in "lint:${{ steps.lint.outcome }}" "typecheck:${{ steps.typecheck.outcome }}" \
+                      "test:${{ steps.test.outcome }}" "build:${{ steps.build.outcome }}" \
+                      "e2e:${{ steps.e2e.outcome }}" "ratchet:${{ steps.ratchet.outcome }}"; do
+            name="${pair%%:*}"
+            outcome="${pair#*:}"
+            if [ "$outcome" = "failure" ]; then
+              failed="${failed}${failed:+, }${name}"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "result=failure" >> "$GITHUB_OUTPUT"
+            echo "::error::Failed stages: ${failed}"
+            echo "## Verification failed: ${failed}" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "result=success" >> "$GITHUB_OUTPUT"
+          echo "## All verification stages passed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Resolve branch role, version, and image tags
+        id: publication
+        if: always() && github.event_name != 'pull_request' && (inputs.dry_run || steps.evaluate.outputs.result == 'success')
+        run: |
+          mkdir -p .ci
+          node .ci-workflows/scripts/version.mjs \
+            --ref-type "${{ github.ref_type }}" \
+            --ref-name "${{ github.ref_name }}" \
+            --branch-model "${{ inputs.branch_model }}" \
+            --main-branch "${{ inputs.main_branch }}" \
+            --integration-branch "${{ inputs.integration_branch }}" \
+            --work-branch-pattern "${{ inputs.work_branch_pattern }}" \
+            --sha "${{ github.sha }}" \
+            --dry-run "${{ inputs.dry_run }}" \
+            > .ci/publication.json
+          cat .ci/publication.json
+          {
+            echo "role=$(jq -r '.role // ""' .ci/publication.json)"
+            echo "publish=$(jq -r '.publish' .ci/publication.json)"
+            echo "strategy=$(jq -r '.strategy // ""' .ci/publication.json)"
+            echo "version=$(jq -r '.version // ""' .ci/publication.json)"
+            echo "digest_source_tag=$(jq -r '.digestSourceTag // ""' .ci/publication.json)"
+            echo "image_tags=$(jq -r '(.imageTags // []) | join(",")' .ci/publication.json)"
+          } >> "$GITHUB_OUTPUT"
+
+  docker:
+    name: Docker build
+    needs: verify
+    if: always() && inputs.dockerfile != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the consumer repository
+        uses: actions/checkout@v4
+
+      - name: Check out ci-workflows itself
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.verify.outputs.self_repo }}
+          ref: ${{ needs.verify.outputs.self_ref }}
+          path: .ci-workflows
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve image name
+        id: image
+        run: |
+          name="${{ inputs.image_name }}"
+          if [ -z "$name" ]; then
+            name="${{ inputs.registry }}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          fi
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to the registry
+        if: needs.verify.outputs.publish == 'true' && inputs.publish_image && !inputs.dry_run
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.registry_username || github.actor }}
+          password: ${{ secrets.registry_password || github.token }}
+
+      - name: Build for verification (amd64, not pushed)
+        id: build_verify
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.working_directory }}
+          file: ${{ inputs.working_directory }}/${{ inputs.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          tags: local/verify:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test
+        if: inputs.smoke_test_endpoint != ''
+        env:
+          SMOKE_TEST_ENV: ${{ inputs.smoke_test_env }}
+        run: |
+          node .ci-workflows/scripts/smoke.mjs \
+            --image "local/verify:${{ github.sha }}" \
+            --port "${{ inputs.smoke_test_port }}" \
+            --endpoint "${{ inputs.smoke_test_endpoint }}" \
+            --timeout "${{ inputs.smoke_test_timeout }}"
+
+      - name: Compose full image tag list
+        if: needs.verify.outputs.publish == 'true'
+        id: tags
+        run: |
+          full=""
+          IFS=',' read -ra list <<< "${{ needs.verify.outputs.image_tags }}"
+          for t in "${list[@]}"; do
+            full="${full}${{ steps.image.outputs.name }}:${t}"$'\n'
+          done
+          {
+            echo "list<<TAGSEOF"
+            echo "$full"
+            echo "TAGSEOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Promote a previously verified digest
+        if: >-
+          needs.verify.outputs.overall_result == 'success' &&
+          needs.verify.outputs.publish == 'true' &&
+          needs.verify.outputs.strategy == 'promote' &&
+          github.event_name != 'pull_request' &&
+          inputs.publish_image
+        run: |
+          node .ci-workflows/scripts/promote.mjs \
+            --image "${{ steps.image.outputs.name }}" \
+            --source-tag "${{ needs.verify.outputs.digest_source_tag }}" \
+            --target-tags "${{ needs.verify.outputs.image_tags }}" \
+            --dry-run "${{ inputs.dry_run }}"
+
+      - name: Build and publish (multi-arch)
+        if: >-
+          needs.verify.outputs.overall_result == 'success' &&
+          needs.verify.outputs.publish == 'true' &&
+          needs.verify.outputs.strategy != 'promote' &&
+          github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.working_directory }}
+          file: ${{ inputs.working_directory }}/${{ inputs.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          push: ${{ inputs.publish_image && !inputs.dry_run }}
+          tags: ${{ steps.tags.outputs.list }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Report dry-run effects
+        if: inputs.dry_run && needs.verify.outputs.publish == 'true'
+        run: |
+          {
+            echo "## Dry run — suppressed effects"
+            echo ""
+            if [ "${{ needs.verify.outputs.strategy }}" = "promote" ]; then
+              echo "Would have promoted \`${{ needs.verify.outputs.digest_source_tag }}\` to:"
+            else
+              echo "Would have built and published:"
+            fi
+            echo '```'
+            echo "${{ steps.tags.outputs.list }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
