@@ -1,0 +1,9 @@
+{
+  "totals": {
+    "num_statements": 200,
+    "covered_lines": 170,
+    "percent_covered": 85.0,
+    "num_branches": 60,
+    "covered_branches": 45
+  }
+}

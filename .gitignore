@@ -1,7 +1,7 @@
-node_modules/
-.ci/
-dist/
-coverage/
+/node_modules/
+/.ci/
+/dist/
+/coverage/
 *.log
 .DS_Store
 .claude/
