@@ -26,5 +26,6 @@ jobs:
       - run: |
           tag="${{ needs.release.outputs.tag_name }}"
           major="v$(echo "$tag" | sed -E 's/^v?([0-9]+)\..*/\1/')"
+          git fetch origin "refs/tags/${tag}:refs/tags/${tag}"
           git tag -f "$major" "$tag"
           git push origin "$major" --force
