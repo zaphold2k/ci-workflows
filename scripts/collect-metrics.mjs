@@ -204,6 +204,7 @@ const SUPPRESSION_PATTERNS = [
   /#\s*type:\s*ignore/g,
   /#\s*pylint:\s*disable/g,
   /#\s*ruff:\s*noqa/g,
+  /#\s*shellcheck\s+disable/g,
 ];
 
 const SKIP_DIRS = new Set([
@@ -246,6 +247,8 @@ const SOURCE_EXTENSIONS = new Set([
   ".svelte",
   ".vue",
   ".astro",
+  ".sh",
+  ".bash",
 ]);
 
 function countSuppressions(dir) {

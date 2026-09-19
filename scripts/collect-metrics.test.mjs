@@ -101,3 +101,8 @@ test("countSuppressions counts suppressions in source but excludes node_modules"
   const count = countSuppressions(join(FIXTURES, "suppressions"));
   assert.equal(count, 2);
 });
+
+test("countSuppressions recognizes a shellcheck disable directive", () => {
+  const count = countSuppressions(join(FIXTURES, "shellcheck"));
+  assert.equal(count, 1);
+});

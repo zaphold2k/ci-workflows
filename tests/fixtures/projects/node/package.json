@@ -1,0 +1,15 @@
+{
+  "name": "ci-workflows-fixture-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint src",
+    "test": "mkdir -p .ci && node --test --experimental-test-coverage --test-reporter=junit --test-reporter-destination=.ci/junit.xml --test-reporter=lcov --test-reporter-destination=.ci/lcov.info --test-reporter=spec --test-reporter-destination=stdout",
+    "build": "node --check src/app.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0"
+  }
+}
