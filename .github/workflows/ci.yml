@@ -110,6 +110,13 @@ permissions:
   pull-requests: write
   actions: read
 
+# Serializes successive pushes to the same branch so two pushes never
+# compute the same prerelease counter from the same tag snapshot; it does
+# not cancel an in-flight run, since one may already be publishing.
+concurrency:
+  group: ci-workflows-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify:
     name: Verify (${{ inputs.language }})
