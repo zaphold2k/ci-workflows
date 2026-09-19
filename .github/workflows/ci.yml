@@ -136,6 +136,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Require the integration branch to exist in the full model
+        if: inputs.branch_model == 'full'
+        run: |
+          if ! git ls-remote --exit-code --heads origin "${{ inputs.integration_branch }}" >/dev/null; then
+            echo "::error::branch_model is 'full' but branch '${{ inputs.integration_branch }}' does not exist. Create it, or switch to branch_model: simple." >&2
+            exit 1
+          fi
+
       - name: Resolve this component's own repository and ref
         id: self
         run: |
