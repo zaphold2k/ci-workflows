@@ -62,6 +62,13 @@ on:
         description: "Path relative to working_directory. Empty skips the Docker build entirely."
         type: string
         default: "Dockerfile"
+      docker_targets:
+        description: >-
+          JSON array of Dockerfile build-stage names, one published image per
+          target (e.g. '["cli","worker","api"]'). Default builds a single
+          image from the Dockerfile's final stage.
+        type: string
+        default: '[""]'
       platforms:
         type: string
         default: "linux/amd64,linux/arm64"
@@ -392,10 +399,14 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   docker:
-    name: Docker build
+    name: Docker build (${{ matrix.target || 'default' }})
     needs: verify
     if: always() && inputs.dockerfile != ''
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(inputs.docker_targets) }}
     steps:
       - name: Check out the consumer repository
         uses: actions/checkout@v4
@@ -420,6 +431,9 @@ jobs:
           if [ -z "$name" ]; then
             name="${{ inputs.registry }}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
           fi
+          if [ -n "${{ matrix.target }}" ]; then
+            name="${name}-${{ matrix.target }}"
+          fi
           echo "name=${name}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to the registry
@@ -436,11 +450,12 @@ jobs:
         with:
           context: ${{ inputs.working_directory }}
           file: ${{ inputs.working_directory }}/${{ inputs.dockerfile }}
+          target: ${{ matrix.target }}
           platforms: linux/amd64
           load: true
           tags: local/verify:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.target || 'default' }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target || 'default' }}
 
       - name: Smoke test
         if: inputs.smoke_test_endpoint != ''
@@ -492,11 +507,16 @@ jobs:
         with:
           context: ${{ inputs.working_directory }}
           file: ${{ inputs.working_directory }}/${{ inputs.dockerfile }}
+          target: ${{ matrix.target }}
           platforms: ${{ inputs.platforms }}
           push: ${{ inputs.publish_image && !inputs.dry_run }}
           tags: ${{ steps.tags.outputs.list }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.version=${{ needs.verify.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha,scope=${{ matrix.target || 'default' }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target || 'default' }}
 
       - name: Report dry-run effects
         if: inputs.dry_run && needs.verify.outputs.publish == 'true'
