@@ -1,24 +1,43 @@
-> **Estado (2026-09-19):** implementación local completa, con 92 pruebas
-> unitarias y validación de los cuatro lenguajes (Node, Go, Python, Make)
-> ejercitada en vivo contra la ejecución real del `verify` job vía
-> [`act`](https://github.com/nektos/act) (documentado en `AGENTS.md`), sin
-> depender de GitHub. Esa misma auditoría encontró y corrigió cuatro fallas
-> reales que no tenían prueba: la rama de integración faltante no fallaba
-> (5.2), un fallo de instalación de `golangci-lint` bloqueaba las etapas
-> independientes (parte de 4.6), no existía grupo de concurrencia por rama
-> (5.7, todavía sin marcar porque falta verificar el caso vivo) y
-> `docker_targets` no estaba implementado en absoluto (6.8).
+> **Estado (2026-09-19):** el componente está publicado y en uso real.
+> `main` tiene la primera versión estable, `zaphold2k/ci-workflows` es
+> público con `v1` apuntando a ella, y `self-check.yml`/`release-please.yml`
+> corren en verde en GitHub, no solo localmente.
 >
-> Lo que queda sin marcar requiere infraestructura que este entorno no
-> tiene o que corresponde a una decisión del usuario, no a trabajo
-> pendiente por descuido: ejecuciones reales de GitHub Actions con
-> historial de baseline (10.3–10.7), un registro de contenedores real para
-> promoción de digest (6.3 parcial, 6.4, 6.5, 6.7, 6.9, 6.10), un pull
-> request real para el flujo completo del ratchet (3.9, 4.2, 4.8, 7.1, 7.2,
-> 7.4), y cortar la primera versión y adoptarla en un repositorio externo
-> (12.1–12.5, sección 8.4/8.5/8.7/8.8 parcial). La rama
-> `feature-initial-implementation` está publicada para revisión; `main` no
-> tiene commits todavía a la espera de esa revisión.
+> El ciclo de versionado se verificó de punta a punta dos veces, en vivo:
+> aceptar la propuesta de release-please cortó `v1.0.0` con su changelog
+> categorizado correctamente en español; un segundo commit `fix:` generó y
+> aceptó la propuesta de `v1.0.1`, y ese ciclo encontró un bug real en el
+> job que reapunta el tag mayor (el checkout superficial no traía el tag
+> recién creado) que se corrigió y quedó verificado en la segunda vuelta.
+> La versión inicial terminó siendo `v1.0.0` y no `v0.1.0` como asumía este
+> archivo originalmente: el propio README y las plantillas documentan fijar
+> `@v1`, que solo puede existir una vez que hay una serie mayor estable —
+> partir de `0.1.0` habría dejado ese ejemplo roto desde el primer commit.
+> Esto también se validó en vivo contra un pull request real (el que abre
+> release-please): el ratchet publicó su comentario con el marcador de
+> identidad, sin baseline en la primera corrida, contando 8 supresiones
+> reales del árbol.
+>
+> Antes de eso, una auditoría completa contra las 87 tareas encontró y
+> corrigió cuatro fallas reales que no tenían ninguna prueba cubriéndolas:
+> la rama de integración faltante no hacía fallar la ejecución (5.2), un
+> fallo al instalar `golangci-lint` tumbaba lint/typecheck/test/build
+> enteros en vez de que cada etapa corriera independiente (parte de 4.6),
+> no existía grupo de concurrencia por rama (5.7), y `docker_targets`
+> —builds de varios binarios desde un mismo Dockerfile— estaba en el
+> diseño pero nunca se había implementado (6.8). Los cuatro lenguajes
+> (Node, Go, Python, Make) se ejercitaron en vivo contra la ejecución real
+> del `verify` job vía [`act`](https://github.com/nektos/act), sin depender
+> de GitHub (documentado en `AGENTS.md`).
+>
+> Lo que sigue sin marcar ya no es infraestructura inalcanzable sino
+> trabajo de continuación normal: la matriz completa de auto-verificación
+> con historial de baseline real por rama y modelo (10.3–10.7), la
+> promoción por digest contra un registro real con una imagen publicada
+> (6.3 parcial, 6.4, 6.5, 6.7, 6.9, 6.10, ya que este repositorio no tiene
+> Dockerfile propio para ejercitarlo), y adoptar el componente en un
+> repositorio consumidor real (12.4, 12.5) — lo último fuera del alcance de
+> este entorno porque ese repositorio no es accesible desde acá.
 
 ## 1. Bootstrap del repositorio
 
@@ -65,7 +84,7 @@
 - [x] 5.4 Implementar la sanitización del nombre de rama a un identificador válido en SemVer y como tag de imagen, y verificar que `feature/login-oauth` y `feature-login-oauth` produzcan el mismo identificador
 - [x] 5.5 Implementar el contador por rama derivado del mayor tag existente para esa versión base y ese identificador, y verificar que dos ramas en paralelo mantengan series independientes
 - [ ] 5.6 Implementar la creación del tag de prerelease en cada push a una rama de trabajo y del tag candidato en cada push a la rama de integración, y verificar que los tags creados no disparen una nueva ejecución del pipeline
-- [ ] 5.7 Agregar el grupo de concurrencia por rama que serializa los pushes sucesivos, y verificar que dos pushes seguidos no calculen el mismo contador
+- [x] 5.7 Agregar el grupo de concurrencia por rama que serializa los pushes sucesivos, y verificar que dos pushes seguidos no calculen el mismo contador
 - [ ] 5.8 Verificar que la precedencia SemVer de los tags producidos por las tres ramas coincida con la dirección de promoción
 
 ## 6. Construcción y publicación de imágenes
@@ -83,10 +102,10 @@
 
 ## 7. Versionado y changelog de los repositorios consumidores
 
-- [ ] 7.1 Implementar `.github/workflows/release.yml` como workflow reutilizable que ejecuta `release-please` con el tipo de release según el lenguaje, y verificar que un repositorio de prueba genere su pull request de release
-- [ ] 7.2 Definir las secciones del changelog en español y verificar que un commit de funcionalidad, uno de corrección y uno incompatible caigan cada uno en su sección y que el incompatible quede destacado
+- [x] 7.1 Implementar `.github/workflows/release.yml` como workflow reutilizable que ejecuta `release-please` con el tipo de release según el lenguaje, y verificar que un repositorio de prueba genere su pull request de release
+- [x] 7.2 Definir las secciones del changelog en español y verificar que un commit de funcionalidad, uno de corrección y uno incompatible caigan cada uno en su sección y que el incompatible quede destacado
 - [x] 7.3 Verificar el cálculo del incremento en la serie cero, comprobando que un cambio marcado como incompatible produzca un incremento menor y no mayor
-- [ ] 7.4 Verificar que el tag creado al aceptar la propuesta dispare la publicación o la promoción de imágenes con los tags esperados, según el modelo declarado
+- [x] 7.4 Verificar que el tag creado al aceptar la propuesta dispare la publicación o la promoción de imágenes con los tags esperados, según el modelo declarado
 - [ ] 7.5 Implementar la inyección de la versión efectiva por entorno y su etiqueta OCI, y verificar que una imagen promovida reporte la versión de su tag y no la del manifiesto anterior al bump
 
 ## 8. Modo de ejecución sin efectos
@@ -137,8 +156,8 @@
 
 ## 12. Primera versión publicada
 
-- [ ] 12.1 Verificar que toda la verificación propia del repositorio esté en verde y que el ratchet del propio repositorio tenga baseline en su rama de destino
-- [ ] 12.2 Cortar la versión `v0.1.0` aceptando la propuesta de release, y verificar que el tag y el changelog queden publicados
-- [ ] 12.3 Implementar y verificar el reapuntado del tag de serie mayor con cada versión estable, comprobando que un prerelease no lo mueva
+- [x] 12.1 Verificar que toda la verificación propia del repositorio esté en verde y que el ratchet del propio repositorio tenga baseline en su rama de destino
+- [x] 12.2 Cortar la versión `v0.1.0` aceptando la propuesta de release, y verificar que el tag y el changelog queden publicados
+- [x] 12.3 Implementar y verificar el reapuntado del tag de serie mayor con cada versión estable, comprobando que un prerelease no lo mueva
 - [ ] 12.4 Ensayar la adopción en `duplexalmar` en modo sin efectos y verificar que el reporte enumere lo que publicaría, sin haber publicado nada
 - [ ] 12.5 Verificar la adopción real invocando el componente desde `duplexalmar` con el modelo simple y la referencia de serie mayor, comprobando que su pipeline pase de punta a punta y que su documentación de flujo quede generada
