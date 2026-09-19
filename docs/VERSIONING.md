@@ -80,3 +80,23 @@ nothing to retrigger: the tag and its image come out of one execution, not
 two. This is different from the stable-release case above only in that a
 prerelease never needs a second, separately-triggered run to publish
 anything.
+
+## An image's effective version is its tag, not its baked-in manifest
+
+Every build sets `org.opencontainers.image.version` and
+`org.opencontainers.image.revision` OCI labels from the version being built.
+For a freshly built image, that label matches its tag.
+
+A **promoted** stable image is the exception, and deliberately so:
+promotion composes a new manifest list on top of the same blobs without
+rebuilding (see "What each branch produces" above), so the image's baked-in
+labels still say whatever version it was built as (`X.Y.Z-rc.N`), not the
+stable version it's promoted to. Rebuilding to fix this would defeat the
+entire point of promotion — the image would no longer be bit-for-bit what
+was tested on the integration branch.
+
+The rule this implies: an image's effective version is the tag it's
+referenced by, never something baked into its manifest at build time. An
+application that needs to report its own version reads it from an
+environment variable injected when it's deployed (from the tag the deployer
+pulled), not from a value compiled or baked in at image-build time.
