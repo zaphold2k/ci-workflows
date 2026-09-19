@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/zaphold2k/ci-workflows/compare/v1.0.0...v1.0.1) (2026-09-19)
+
+
+### Correcciones
+
+* fetch the release tag before moving the major-version tag ([1a0337c](https://github.com/zaphold2k/ci-workflows/commit/1a0337c3dbf7ed290821b94914c00157e51c72bc))
+
 ## 1.0.0 (2026-09-19)
 
 
