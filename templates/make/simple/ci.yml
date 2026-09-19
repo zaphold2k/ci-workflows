@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "feature-*"]
+  pull_request:
+
+jobs:
+  ci:
+    uses: zaphold2k/ci-workflows/.github/workflows/ci.yml@v1
+    with:
+      language: make
+      branch_model: simple
+      image_name: ghcr.io/OWNER/REPO
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+      actions: read
