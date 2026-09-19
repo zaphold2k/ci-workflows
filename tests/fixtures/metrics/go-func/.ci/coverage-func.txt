@@ -1,0 +1,3 @@
+github.com/example/pkg/foo.go:10:	Foo		100.0%
+github.com/example/pkg/bar.go:22:	Bar		66.7%
+total:							(statements)	78.4%

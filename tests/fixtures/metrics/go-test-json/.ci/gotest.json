@@ -1,0 +1,7 @@
+{"Action":"run","Package":"example/pkg","Test":"TestAdd"}
+{"Action":"pass","Package":"example/pkg","Test":"TestAdd","Elapsed":0.001}
+{"Action":"run","Package":"example/pkg","Test":"TestSkip"}
+{"Action":"skip","Package":"example/pkg","Test":"TestSkip","Elapsed":0}
+{"Action":"run","Package":"example/pkg","Test":"TestFail"}
+{"Action":"fail","Package":"example/pkg","Test":"TestFail","Elapsed":0.002}
+{"Action":"pass","Package":"example/pkg","Elapsed":0.003}
