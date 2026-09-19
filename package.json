@@ -6,7 +6,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "test": "node --test scripts/**/*.test.mjs",
+    "test": "node --test",
     "lint": "eslint scripts",
     "format": "prettier --check .",
     "format:write": "prettier --write ."
