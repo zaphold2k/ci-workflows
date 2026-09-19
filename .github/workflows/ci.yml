@@ -90,6 +90,14 @@ on:
         description: "Run the full pipeline without publishing images, creating tags, or commenting."
         type: boolean
         default: false
+      readme_path:
+        description: "Where the generated flow block is checked in the human-facing doc. Empty disables the check."
+        type: string
+        default: "README.md"
+      agent_docs:
+        description: "Comma-separated agent doc paths carrying the same generated block. Empty disables the check."
+        type: string
+        default: "AGENTS.md,CLAUDE.md"
     secrets:
       registry_username:
         required: false
@@ -301,6 +309,23 @@ jobs:
             --work-branch-pattern "${{ inputs.work_branch_pattern }}" \
             --labels "${{ join(github.event.pull_request.labels.*.name, ',') }}"
 
+      - name: Check generated documentation is current
+        id: docs
+        if: always() && (inputs.readme_path != '' || inputs.agent_docs != '')
+        continue-on-error: true
+        run: |
+          image_arg="${{ inputs.image_name }}"
+          if [ -z "${{ inputs.dockerfile }}" ]; then image_arg="__none__"; fi
+          node .ci-workflows/scripts/render-docs.mjs --check \
+            --language "${{ inputs.language }}" \
+            --branch-model "${{ inputs.branch_model }}" \
+            --main-branch "${{ inputs.main_branch }}" \
+            --integration-branch "${{ inputs.integration_branch }}" \
+            --work-branch-pattern "${{ inputs.work_branch_pattern }}" \
+            --image "$image_arg" \
+            --readme "${{ inputs.readme_path }}" \
+            --agent-docs "${{ inputs.agent_docs }}"
+
       - name: Evaluate verification stages
         id: evaluate
         if: always()
@@ -308,7 +333,8 @@ jobs:
           failed=""
           for pair in "lint:${{ steps.lint.outcome }}" "typecheck:${{ steps.typecheck.outcome }}" \
                       "test:${{ steps.test.outcome }}" "build:${{ steps.build.outcome }}" \
-                      "e2e:${{ steps.e2e.outcome }}" "ratchet:${{ steps.ratchet.outcome }}"; do
+                      "e2e:${{ steps.e2e.outcome }}" "ratchet:${{ steps.ratchet.outcome }}" \
+                      "docs:${{ steps.docs.outcome }}"; do
             name="${pair%%:*}"
             outcome="${pair#*:}"
             if [ "$outcome" = "failure" ]; then
