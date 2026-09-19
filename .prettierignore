@@ -4,3 +4,4 @@ dist/
 coverage/
 openspec/
 CHANGELOG.md
+.claude/
