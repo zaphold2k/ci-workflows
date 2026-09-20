@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.1](https://github.com/zaphold2k/ci-workflows/compare/v2.0.0...v2.0.1) (2026-09-20)
+
+
+### Correcciones
+
+* configure git identity before creating annotated prerelease tags ([cf28354](https://github.com/zaphold2k/ci-workflows/commit/cf283546ad3f12f303bb3e845394182ce2a198de))
+
+
+### Documentación
+
+* record duplexalmar's first fully-green dry-run pipeline ([4044f4a](https://github.com/zaphold2k/ci-workflows/commit/4044f4afff3e831d2bb939c6ef026d2617d24269))
+* record the [@v2](https://github.com/v2) confirmation and keep 12.5 open on its own terms ([206702f](https://github.com/zaphold2k/ci-workflows/commit/206702ff66832275ce29448e9cf1f774754b014a))
+
 ## [2.0.0](https://github.com/zaphold2k/ci-workflows/compare/v1.0.1...v2.0.0) (2026-09-20)
 
 
