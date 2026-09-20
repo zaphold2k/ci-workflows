@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/zaphold2k/ci-workflows/compare/v1.0.1...v2.0.0) (2026-09-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* require an explicit ci_workflows_ref instead of inferring it from context
+
+### Correcciones
+
+* require an explicit ci_workflows_ref instead of inferring it from context ([7ebf926](https://github.com/zaphold2k/ci-workflows/commit/7ebf92648befb6dce319aff05a2944eefd286ce5))
+
 ## [1.0.1](https://github.com/zaphold2k/ci-workflows/compare/v1.0.0...v1.0.1) (2026-09-19)
 
 
