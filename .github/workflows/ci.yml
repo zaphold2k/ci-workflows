@@ -374,6 +374,12 @@ jobs:
           echo "result=success" >> "$GITHUB_OUTPUT"
           echo "## All verification stages passed" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Configure git identity for tag creation
+        if: always() && github.event_name != 'pull_request' && (inputs.dry_run || steps.evaluate.outputs.result == 'success')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Resolve branch role, version, and image tags
         id: publication
         if: always() && github.event_name != 'pull_request' && (inputs.dry_run || steps.evaluate.outputs.result == 'success')
