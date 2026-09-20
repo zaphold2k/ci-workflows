@@ -67,13 +67,30 @@
 > en un consumidor externo real. Por la misma razón (nunca se llegó a
 > publicar una imagen real) 6.3 y 6.7 tampoco se marcan todavía.
 >
+> El cuelgue de e2e en sí no se resolvió en su causa raíz (por qué el
+> browser que administra Playwright cuelga en `page.waitForEvent('load')`
+> específicamente en el runner sigue sin explicarse), pero `duplexalmar` lo
+> rodeó reescribiendo los flujos afectados del panel como HTTP directo sin
+> Playwright, y con eso su corrida en modo sin efectos con `@v2` +
+> `ci_workflows_ref: v2` (rama `feature/ci-cd-release-deploy`, run
+> 35511104624, 2026-09-20) pasó de punta a punta por primera vez: 61/61
+> Playwright + 11/11 de una suite HTTP nueva, "All verification stages
+> passed", y el job de Docker también en verde. Es una corrida en modo sin
+> efectos, no la adopción real con publicación que pide 12.5 literalmente
+> (esa sigue atada a que `duplexalmar` corte su propio primer release
+> siguiendo el modelo simple — paquete público en GHCR, prerelease e
+> imagen, y el 0.1.0 con sus tags al aceptar la propuesta de
+> release-please); se deja constancia igual porque cierra la duda de si el
+> pipeline entero era capaz de pasar en verde con este componente de por
+> medio, que ya no es una incógnita.
+>
 > Lo que sigue sin marcar ya no es infraestructura inalcanzable sino
 > trabajo de continuación normal: la matriz completa de auto-verificación
 > con historial de baseline real por rama y modelo (10.3–10.7), la
 > promoción por digest contra un registro real con una imagen publicada
 > (6.3 parcial, 6.4, 6.5, 6.7, 6.9, 6.10, ya que este repositorio no tiene
-> Dockerfile propio para ejercitarlo), y que el pipeline de `duplexalmar`
-> pase de punta a punta una vez resuelto el cuelgue de su propia suite e2e
+> Dockerfile propio para ejercitarlo), y el primer release real de
+> `duplexalmar` con el modelo simple y la referencia de serie mayor
 > (12.5).
 
 ## 1. Bootstrap del repositorio
