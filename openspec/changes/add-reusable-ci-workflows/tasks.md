@@ -1,4 +1,4 @@
-> **Estado (2026-09-19):** el componente está publicado y en uso real.
+> **Estado (2026-09-20):** el componente está publicado y en uso real.
 > `main` tiene la primera versión estable, `zaphold2k/ci-workflows` es
 > público con `v1` apuntando a ella, y `self-check.yml`/`release-please.yml`
 > corren en verde en GitHub, no solo localmente.
@@ -30,14 +30,39 @@
 > del `verify` job vía [`act`](https://github.com/nektos/act), sin depender
 > de GitHub (documentado en `AGENTS.md`).
 >
+> Adoptar el componente en un consumidor real (`duplexalmar`, node,
+> `branch_model: simple`) encontró un bug real que ninguna auto-verificación
+> local podía exponer: el paso que resuelve el repo/ref propio del
+> componente para checkoutear sus scripts leía `$GITHUB_WORKFLOW_REF`, que
+> dentro de un reusable workflow siempre nombra al workflow que llama, no al
+> que es llamado — cuando caller y callee viven en el mismo repositorio (el
+> propio dogfooding de `self-check.yml`) esa resolución acertaba por
+> casualidad, y solo un consumidor externo real lo exponía. Se corrigió
+> reemplazando la inferencia por un input requerido, `ci_workflows_ref`
+> (commit `7ebf926` en `main`), ya que no existe ningún valor de contexto
+> que un reusable workflow pueda leer para conocer su propio repo/ref
+> (`github.job_workflow_ref` no existe pese a pedirse recurrentemente).
+> Con el fix, una corrida real en `duplexalmar` con `dry_run: true` (rama
+> `feature/ci-cd-release-deploy`,
+> https://github.com/zaphold2k/duplexalmar/actions/runs/35488855755)
+> completó el checkout, install/lint/typecheck/test/build, métricas,
+> ratchet y el job de Docker completo (build multi-plataforma, smoke test,
+> composición de la lista de tags, reporte de qué publicaría) sin publicar
+> nada — eso satisface 12.4. El job `verify` de esa corrida sigue en rojo
+> por un cuelgue real de la aplicación de `duplexalmar` al subir un HEIC en
+> sus pruebas e2e, ajeno a este componente; 12.5 queda sin marcar hasta que
+> ese pipeline pase de punta a punta con la referencia de serie mayor
+> (`@v1`) una vez que release-please corte una versión con este fix, y por
+> eso 6.3 y 6.7 tampoco se marcan todavía — ninguno llegó a publicar una
+> imagen real para promover o volver a bajar por arquitectura.
+>
 > Lo que sigue sin marcar ya no es infraestructura inalcanzable sino
 > trabajo de continuación normal: la matriz completa de auto-verificación
 > con historial de baseline real por rama y modelo (10.3–10.7), la
 > promoción por digest contra un registro real con una imagen publicada
 > (6.3 parcial, 6.4, 6.5, 6.7, 6.9, 6.10, ya que este repositorio no tiene
-> Dockerfile propio para ejercitarlo), y adoptar el componente en un
-> repositorio consumidor real (12.4, 12.5) — lo último fuera del alcance de
-> este entorno porque ese repositorio no es accesible desde acá.
+> Dockerfile propio para ejercitarlo), y completar la adopción real en
+> `duplexalmar` con la referencia de serie mayor una vez publicada (12.5).
 
 ## 1. Bootstrap del repositorio
 
@@ -159,5 +184,5 @@
 - [x] 12.1 Verificar que toda la verificación propia del repositorio esté en verde y que el ratchet del propio repositorio tenga baseline en su rama de destino
 - [x] 12.2 Cortar la versión `v0.1.0` aceptando la propuesta de release, y verificar que el tag y el changelog queden publicados
 - [x] 12.3 Implementar y verificar el reapuntado del tag de serie mayor con cada versión estable, comprobando que un prerelease no lo mueva
-- [ ] 12.4 Ensayar la adopción en `duplexalmar` en modo sin efectos y verificar que el reporte enumere lo que publicaría, sin haber publicado nada
+- [x] 12.4 Ensayar la adopción en `duplexalmar` en modo sin efectos y verificar que el reporte enumere lo que publicaría, sin haber publicado nada
 - [ ] 12.5 Verificar la adopción real invocando el componente desde `duplexalmar` con el modelo simple y la referencia de serie mayor, comprobando que su pipeline pase de punta a punta y que su documentación de flujo quede generada
