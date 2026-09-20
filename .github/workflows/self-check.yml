@@ -17,6 +17,7 @@ jobs:
       coverage_tolerance: 0
       readme_path: ""
       agent_docs: ""
+      ci_workflows_ref: main
     permissions:
       contents: write
       packages: write

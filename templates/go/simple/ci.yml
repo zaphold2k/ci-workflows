@@ -9,6 +9,7 @@ jobs:
   ci:
     uses: zaphold2k/ci-workflows/.github/workflows/ci.yml@v1
     with:
+      ci_workflows_ref: v1
       language: go
       branch_model: simple
       image_name: ghcr.io/OWNER/REPO

@@ -66,6 +66,7 @@ jobs:
     uses: zaphold2k/ci-workflows/.github/workflows/ci.yml@your-branch-name
     with:
       language: node
+      ci_workflows_ref: your-branch-name
       dry_run: true
 ```
 
@@ -92,16 +93,16 @@ isolation:
 mkdir -p /tmp/act-test/.github/workflows /tmp/act-test/.ci-workflows
 cp .github/workflows/ci.yml /tmp/act-test/.github/workflows/ci.yml
 cp -r scripts /tmp/act-test/.ci-workflows/
-# In the copied ci.yml, remove the "Resolve this component's own repository
-# and ref" and "Check out ci-workflows itself" steps — .ci-workflows is
-# already in place above, and the real steps would try to fetch this
-# repository from GitHub using act's synthetic (non-existent) context.
+# In the copied ci.yml, remove the "Check out ci-workflows itself" step —
+# .ci-workflows is already in place above, and the real step would try to
+# fetch this repository from GitHub using act's synthetic (non-existent)
+# context.
 cat > /tmp/act-test/.github/workflows/caller.yml <<'EOF'
 on: push
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
-    with: { language: node, dockerfile: "", dry_run: true }
+    with: { language: node, dockerfile: "", dry_run: true, ci_workflows_ref: local }
 EOF
 # Copy a project from tests/fixtures/projects/<language>/ into /tmp/act-test,
 # git init + commit it, then, to exercise a specific branch role, write an

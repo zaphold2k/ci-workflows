@@ -105,6 +105,16 @@ on:
         description: "Comma-separated agent doc paths carrying the same generated block. Empty disables the check."
         type: string
         default: "AGENTS.md,CLAUDE.md"
+      ci_workflows_ref:
+        description: >-
+          The exact ref after the @ in this same job's own `uses:
+          zaphold2k/ci-workflows/.github/workflows/ci.yml@<ref>` line.
+          GitHub Actions gives a reusable workflow no way to read that back
+          from context (github.workflow_ref names the caller's top-level
+          workflow, not this one), so it must be repeated here verbatim —
+          including when testing from a branch per AGENTS.md.
+        type: string
+        required: true
     secrets:
       registry_username:
         required: false
@@ -130,8 +140,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       overall_result: ${{ steps.evaluate.outputs.result }}
-      self_repo: ${{ steps.self.outputs.repo }}
-      self_ref: ${{ steps.self.outputs.ref }}
+      self_repo: zaphold2k/ci-workflows
+      self_ref: ${{ inputs.ci_workflows_ref }}
       branch_role: ${{ steps.publication.outputs.role }}
       publish: ${{ steps.publication.outputs.publish }}
       strategy: ${{ steps.publication.outputs.strategy }}
@@ -158,20 +168,11 @@ jobs:
             exit 1
           fi
 
-      - name: Resolve this component's own repository and ref
-        id: self
-        run: |
-          workflow_ref="${GITHUB_WORKFLOW_REF}"
-          repo="${workflow_ref%%/.github/*}"
-          ref="${workflow_ref##*@}"
-          echo "repo=${repo}" >> "$GITHUB_OUTPUT"
-          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
-
       - name: Check out ci-workflows itself
         uses: actions/checkout@v4
         with:
-          repository: ${{ steps.self.outputs.repo }}
-          ref: ${{ steps.self.outputs.ref }}
+          repository: zaphold2k/ci-workflows
+          ref: ${{ inputs.ci_workflows_ref }}
           path: .ci-workflows
 
       - name: Set up Node.js
