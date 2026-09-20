@@ -50,19 +50,31 @@
 > composición de la lista de tags, reporte de qué publicaría) sin publicar
 > nada — eso satisface 12.4. El job `verify` de esa corrida sigue en rojo
 > por un cuelgue real de la aplicación de `duplexalmar` al subir un HEIC en
-> sus pruebas e2e, ajeno a este componente; 12.5 queda sin marcar hasta que
-> ese pipeline pase de punta a punta con la referencia de serie mayor
-> (`@v1`) una vez que release-please corte una versión con este fix, y por
-> eso 6.3 y 6.7 tampoco se marcan todavía — ninguno llegó a publicar una
-> imagen real para promover o volver a bajar por arquitectura.
+> sus pruebas e2e, ajeno a este componente; ese `fix!` disparó el bump a
+> `v2.0.0` en release-please, sin que hiciera falta nada manual.
+>
+> Con `@v2` + `ci_workflows_ref: v2`, `duplexalmar` repitió la corrida real
+> (no dry-run) varias veces, de forma consistente: todo lo que depende del
+> componente pasa limpio — lint, typecheck, test, build, `collect-metrics`,
+> ratchet, el check de documentación generada, y el job de Docker completo
+> con smoke test. Lo único en rojo sigue siendo el mismo cuelgue de e2e de
+> la aplicación (descartaron timeout insuficiente y "browser frío" con
+> evidencia real; quedó pausado para una sesión dedicada a la app de
+> `duplexalmar`, no a este componente). 12.5 pide explícitamente que "su
+> pipeline pase de punta a punta", y ese job todavía no lo hace por ese
+> motivo ajeno — se deja sin marcar a propósito, con esta evidencia como
+> registro de que la parte que le compete al componente ya está verificada
+> en un consumidor externo real. Por la misma razón (nunca se llegó a
+> publicar una imagen real) 6.3 y 6.7 tampoco se marcan todavía.
 >
 > Lo que sigue sin marcar ya no es infraestructura inalcanzable sino
 > trabajo de continuación normal: la matriz completa de auto-verificación
 > con historial de baseline real por rama y modelo (10.3–10.7), la
 > promoción por digest contra un registro real con una imagen publicada
 > (6.3 parcial, 6.4, 6.5, 6.7, 6.9, 6.10, ya que este repositorio no tiene
-> Dockerfile propio para ejercitarlo), y completar la adopción real en
-> `duplexalmar` con la referencia de serie mayor una vez publicada (12.5).
+> Dockerfile propio para ejercitarlo), y que el pipeline de `duplexalmar`
+> pase de punta a punta una vez resuelto el cuelgue de su propia suite e2e
+> (12.5).
 
 ## 1. Bootstrap del repositorio
 
